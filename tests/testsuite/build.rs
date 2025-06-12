@@ -6836,3 +6836,147 @@ fn embed_metadata_dylib_dep() {
         )
         .run();
 }
+
+#[cargo_test]
+fn compile_time_deps() {
+    let p = project()
+        .file(
+            "Cargo.toml",
+            r#"
+                [workspace]
+                resolver = "3"
+                members = [
+                  "./root",
+                  "./direct-dep",
+                  "./build-dep",
+                  "./proc-macro-dep",
+                  "./transitive-dep",
+                ]
+
+                [workspace.dependencies]
+                direct-dep = { path = "./direct-dep" }
+                build-dep = { path = "./build-dep" }
+                proc-macro-dep = { path = "./proc-macro-dep" }
+                transitive-dep = { path = "./transitive-dep" }
+            "#,
+        )
+        .file(
+            "root/Cargo.toml",
+            r#"
+                [package]
+                name = "root"
+                version = "0.1.0"
+                edition = "2024"
+
+                [dependencies]
+                direct-dep.workspace = true
+
+                [dev-dependencies]
+                proc-macro-dep.workspace = true
+
+                [build-dependencies]
+                build-dep.workspace = true
+            "#,
+        )
+        .file(
+            "root/src/main.rs",
+            r#"
+                fn main() {
+                    direct_dep::foo();
+                }
+
+                #[test]
+                fn foo() {
+                    proc_macro_dep::identity! {
+                        directive_dep::foo();
+                    }
+                }
+            "#,
+        )
+        .file(
+            "root/build.rs",
+            r#"
+                fn main() {
+                    build_dep::foo();
+                    build_dep::transitive_dep::foo();
+                }
+            "#,
+        )
+        .file(
+            "direct-dep/Cargo.toml",
+            r#"
+                [package]
+                name = "direct-dep"
+                version = "0.1.0"
+                edition = "2024"
+            "#,
+        )
+        .file("direct-dep/src/lib.rs", r#"pub fn foo() {}"#)
+        .file(
+            "build-dep/Cargo.toml",
+            r#"
+                [package]
+                name = "build-dep"
+                version = "0.1.0"
+                edition = "2024"
+
+                [dependencies]
+                transitive-dep.workspace = true
+            "#,
+        )
+        .file(
+            "build-dep/src/lib.rs",
+            r#"
+                pub use transitive_dep;
+
+                pub fn foo() {
+                    transitive_dep::foo();
+                }
+            "#,
+        )
+        .file(
+            "proc-macro-dep/Cargo.toml",
+            r#"
+                [package]
+                name = "proc-macro-dep"
+                version = "0.1.0"
+                edition = "2024"
+
+                [lib]
+                proc-macro = true
+            "#,
+        )
+        .file(
+            "proc-macro-dep/src/lib.rs",
+            r#"
+                extern crate proc_macro;
+
+                use proc_macro::TokenStream;
+
+                #[proc_macro]
+                pub fn identity(input: TokenStream) -> TokenStream {
+                    input
+                }
+            "#,
+        )
+        .file(
+            "transitive-dep/Cargo.toml",
+            r#"
+                [package]
+                name = "transitive-dep"
+                version = "0.1.0"
+                edition = "2024"
+            "#,
+        )
+        .file("transitive-dep/src/lib.rs", r#"pub fn foo() {}"#)
+        .build();
+
+    p.cargo("build --package root --release")
+        .with_stderr_data(str![[r#"
+[COMPILING] build-dep v0.1.0 ([ROOT]/root)
+[COMPILING] transitive-dep v0.1.0 ([ROOT]/root)
+[FINISHED] `dev` profile [unoptimized + debuginfo] target(s) in [ELAPSED]s
+
+"#]])
+        .run();
+}
