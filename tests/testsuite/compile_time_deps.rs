@@ -36,7 +36,7 @@ fn non_comp_time_dep() {
         .file("bar/src/lib.rs", r#"pub fn bar() {}"#)
         .build();
 
-    p.cargo("build")
+    p.cargo("build --compile-time-deps")
         .with_stderr_data(str![[r#"
 [LOCKING] 1 package to latest compatible version
 [COMPILING] bar v0.0.1 ([ROOT]/foo/bar)

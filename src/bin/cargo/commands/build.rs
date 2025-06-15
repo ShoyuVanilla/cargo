@@ -38,6 +38,7 @@ pub fn cli() -> Command {
         .arg_build_plan()
         .arg_unit_graph()
         .arg_timings()
+        .arg_compile_time_deps()
         .arg_manifest_path()
         .arg_lockfile_path()
         .arg_ignore_rust_version()
@@ -48,6 +49,12 @@ pub fn cli() -> Command {
 
 pub fn exec(gctx: &mut GlobalContext, args: &ArgMatches) -> CliResult {
     let ws = args.workspace(gctx)?;
+
+    if args.flag("compile-time-deps") {
+        gctx.cli_unstable()
+            .fail_if_stable_opt("--compile-time-deps", 0)?;
+    }
+
     let mut compile_opts =
         args.compile_options(gctx, UserIntent::Build, Some(&ws), ProfileChecking::Custom)?;
 

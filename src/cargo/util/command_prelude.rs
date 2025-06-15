@@ -518,6 +518,10 @@ pub trait CommandExt: Sized {
             .hide(true),
         )
     }
+
+    fn arg_compile_time_deps(self) -> Self {
+        self._arg(flag("compile-time-deps", "").hide(true))
+    }
 }
 
 impl CommandExt for Command {
